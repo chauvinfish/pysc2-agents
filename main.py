@@ -16,6 +16,8 @@ from pysc2.env import sc2_env
 from pysc2.lib import stopwatch,features
 import tensorflow as tf
 
+from s2clientprotocol import sc2api_pb2 as sc_pb
+from pysc2 import run_configs
 from run_loop import run_loop
 
 COUNTER = 0
@@ -31,19 +33,19 @@ flags.DEFINE_string("snapshot_path", "./snapshot/", "Path for snapshot.")
 flags.DEFINE_string("log_path", "./log/", "Path for log.")
 flags.DEFINE_string("device", "0", "Device for training.")
 
-flags.DEFINE_string("map", "DefeatRoaches", "Name of a map to use.")
-flags.DEFINE_bool("render", False, "Whether to render with pygame.")
+flags.DEFINE_string("map", "Catalyst", "Name of a map to use.")
+flags.DEFINE_bool("render", True, "Whether to render with pygame.")
 flags.DEFINE_integer("screen_resolution", 64, "Resolution for screen feature layers.")
 flags.DEFINE_integer("minimap_resolution", 64, "Resolution for minimap feature layers.")
 flags.DEFINE_integer("step_mul", 8, "Game steps per agent step.")
 
 flags.DEFINE_string("agent", "agents.a3c_agent.A3CAgent", "Which agent to run.")
 flags.DEFINE_string("net", "fcn", "atari or fcn.")
-flags.DEFINE_enum("agent_race", None, ['random','protoss','terran','zerg'], "Agent's race.")
-flags.DEFINE_enum("bot_race", None, ['random','protoss','terran','zerg'], "Bot's race.")
-flags.DEFINE_enum("difficulty", None, ['very_easy','easy','medium','medium_hard','hard','very_hard','cheat_vision','cheat_money','cheat_insane']
+flags.DEFINE_enum("agent_race", 'zerg', ['random','protoss','terran','zerg'], "Agent's race.")
+flags.DEFINE_enum("bot_race", 'terran', ['random','protoss','terran','zerg'], "Bot's race.")
+flags.DEFINE_enum("difficulty",'medium', ['very_easy','easy','medium','medium_hard','hard','very_hard','cheat_vision','cheat_money','cheat_insane']
 , "Bot's strength.")
-flags.DEFINE_integer("max_agent_steps", 240, "Total agent steps.")
+flags.DEFINE_integer("max_agent_steps", int(1e3), "Total agent steps.")
 
 flags.DEFINE_bool("profile", False, "Whether to turn on code profiling.")
 flags.DEFINE_bool("trace", False, "Whether to trace the code execution.")
@@ -69,11 +71,12 @@ if not os.path.exists(SNAPSHOT):
 
 
 def run_thread(agent, map_name, visualize):
+
   with sc2_env.SC2Env(
     map_name=map_name,
-    agent_race=FLAGS.agent_race,
-    bot_race=FLAGS.bot_race,
-    difficulty=FLAGS.difficulty,
+          players=[sc2_env.Agent(sc2_env.Race.zerg),
+                   sc2_env.Bot(sc2_env.Race.terran,
+                               sc2_env.Difficulty.very_easy)],
     step_mul=FLAGS.step_mul,
           agent_interface_format=features.AgentInterfaceFormat(
             feature_dimensions=features.Dimensions(screen=FLAGS.screen_resolution,
@@ -81,7 +84,7 @@ def run_thread(agent, map_name, visualize):
             ),
 
           visualize=visualize) as env:
-    env = available_actions_printer.AvailableActionsPrinter(env)
+    #env = available_actions_printer.AvailableActionsPrinter(env)
 
     # Only for a single player!
     replay_buffer = []
@@ -115,7 +118,7 @@ def _main(unused_argv):
   stopwatch.sw.enabled = FLAGS.profile or FLAGS.trace
   stopwatch.sw.trace = FLAGS.trace
 
-  maps.get(FLAGS.map)  # Assert the map exists.
+  #maps.get(FLAGS.map)  # Assert the map exists.
 
   # Setup agents
   agent_module, agent_name = FLAGS.agent.rsplit(".", 1)
@@ -128,7 +131,7 @@ def _main(unused_argv):
     agents.append(agent)
 
   config = tf.ConfigProto(allow_soft_placement=True)
-  config.gpu_options.allow_growth = True
+  #config.gpu_options.allow_growth = True
   sess = tf.Session(config=config)
 
   summary_writer = tf.summary.FileWriter(LOG)
